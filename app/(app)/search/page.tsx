@@ -17,13 +17,13 @@ import {
 } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
-  researching: 'bg-blue-100 text-blue-700',
-  applied: 'bg-yellow-100 text-yellow-700',
-  response: 'bg-green-100 text-green-700',
-  interview: 'bg-purple-100 text-purple-700',
-  offer: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-red-100 text-red-700',
-  ghosted: 'bg-gray-100 text-gray-700',
+  researching: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  applied: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+  response: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  interview: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  offer: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  rejected: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+  ghosted: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
 };
 
 export default function SearchPage() {
