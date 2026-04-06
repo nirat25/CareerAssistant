@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Career Assistant
 
-## Getting Started
+AI-powered career development tool for tech professionals in India's startup ecosystem. Walks you through a structured 7-phase job search process: self-assessment, market research, positioning, resume building, proof of work, cold outreach, and a 4-week job search sprint.
 
-First, run the development server:
+## Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up your Claude API key
+cp .env.example .env.local
+# Edit .env.local and add your ANTHROPIC_API_KEY
+
+# Run development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 7 Phases
+1. **Career Audit** - Timed 3-minute self-assessment with AI analysis
+2. **Market Research** - Track target companies, people/product/market signals
+3. **Positioning Engine** - Win collection, fit matrix, GRIP narratives, elevator pitches
+4. **Resume Builder** - Company-specific narratives with gap analysis and bridge statements
+5. **Proof of Work** - 10-day sprint tracker with growth equation builder
+6. **Cold Outreach** - JTBD email composer with "I" counter and reply rate tracking
+7. **Job Search** - 4-week structured sprint with burnout detection
 
-## Learn More
+### AI-Powered
+- Claude API generates positioning statements, resume narratives, cold emails, and more
+- All AI features work through a single `/api/ai/generate` endpoint
 
-To learn more about Next.js, take a look at the following resources:
+### Data
+- All data stored in localStorage (no account needed)
+- Export everything as Markdown
+- Architected for future Supabase migration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Anthropic Claude API
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Your Anthropic API key from [console.anthropic.com](https://console.anthropic.com) |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy to Vercel
+
+1. Push this repo to GitHub
+2. Import in Vercel
+3. Add `ANTHROPIC_API_KEY` environment variable
+4. Deploy
