@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useCareerData } from '@/hooks/useCareerData';
-import { JobApplication } from '@/lib/types';
+import { JobApplication, ColdEmail } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -13,8 +14,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
-  Briefcase, Plus, AlertTriangle, Calendar, CheckSquare
+  Briefcase, Plus, AlertTriangle, Calendar, CheckSquare, Mail
 } from 'lucide-react';
+
+/**
+ * Returns outreach info for a given application derived from real cold-email data.
+ * Matches by companyId first (when both records have it), then by companyName (case-insensitive).
+ * Read-only — never mutates coldEmails from this page.
+ */
+function getOutreachStatus(app: JobApplication, coldEmails: ColdEmail[]): { hasSent: boolean; hasReplied: boolean; count: number } {
+  const matches = coldEmails.filter((email) => {
+    if (app.companyId && email.companyId) {
+      return email.companyId === app.companyId;
+    }
+    return email.companyId.toLowerCase() === app.companyName.toLowerCase() ||
+      app.companyName.toLowerCase().includes(email.companyId.toLowerCase()) ||
+      email.companyId.toLowerCase().includes(app.companyName.toLowerCase());
+  });
+  const sent = matches.filter((e) => e.sent);
+  return {
+    hasSent: sent.length > 0,
+    hasReplied: sent.some((e) => e.replied),
+    count: sent.length,
+  };
+}
 
 const STATUS_COLORS: Record<string, string> = {
   researching: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
@@ -195,39 +218,60 @@ export default function SearchPage() {
               </CardContent>
             </Card>
           ) : (
-            data.applications.map((app) => (
-              <Card key={app.id}>
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium text-sm">{app.companyName}</div>
-                      <div className="text-xs text-muted-foreground">{app.role} &middot; {new Date(app.dateApplied).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* Quality indicators */}
-                      <div className="flex gap-1">
-                        {app.qualityChecklist.researchDone && <CheckSquare className="h-3 w-3 text-green-500" />}
-                        {app.qualityChecklist.requirementsMapped && <CheckSquare className="h-3 w-3 text-blue-500" />}
-                        {app.qualityChecklist.coldDmSent && <CheckSquare className="h-3 w-3 text-purple-500" />}
+            data.applications.map((app) => {
+              const outreach = getOutreachStatus(app, data.coldEmails);
+              // Effective cold-DM status: manual checkbox OR derived from real coldEmails data
+              const effectiveColdDm = app.qualityChecklist.coldDmSent || outreach.hasSent;
+              return (
+                <Card key={app.id}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm">{app.companyName}</div>
+                        <div className="text-xs text-muted-foreground">{app.role} &middot; {new Date(app.dateApplied).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</div>
+                        {/* Derived outreach badge from real cold-email data (read-only) */}
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {outreach.hasSent ? (
+                            <Badge variant="outline" className="text-xs border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400 flex items-center gap-1 py-0">
+                              <Mail className="h-2.5 w-2.5" />
+                              {outreach.hasReplied
+                                ? `Reply received (${outreach.count} sent)`
+                                : `Cold email sent (${outreach.count})`}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs border-muted text-muted-foreground flex items-center gap-1 py-0">
+                              <Mail className="h-2.5 w-2.5" />
+                              No outreach yet
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <Select value={app.status} onValueChange={(v) => updateAppStatus(app.id, v as JobApplication['status'])}>
-                        <SelectTrigger className="w-32 h-7 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.keys(STATUS_COLORS).map((s) => (
-                            <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        {/* Quality indicators */}
+                        <div className="flex gap-1">
+                          {app.qualityChecklist.researchDone && <CheckSquare className="h-3 w-3 text-green-500" />}
+                          {app.qualityChecklist.requirementsMapped && <CheckSquare className="h-3 w-3 text-blue-500" />}
+                          {effectiveColdDm && <CheckSquare className="h-3 w-3 text-purple-500" />}
+                        </div>
+                        <Select value={app.status} onValueChange={(v) => updateAppStatus(app.id, v as JobApplication['status'])}>
+                          <SelectTrigger className="w-32 h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.keys(STATUS_COLORS).map((s) => (
+                              <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
-                  {app.nextSteps && (
-                    <div className="text-xs text-muted-foreground mt-1">Next: {app.nextSteps}</div>
-                  )}
-                </CardContent>
-              </Card>
-            ))
+                    {app.nextSteps && (
+                      <div className="text-xs text-muted-foreground mt-1">Next: {app.nextSteps}</div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </TabsContent>
 

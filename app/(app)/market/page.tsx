@@ -19,7 +19,7 @@ import {
   Plus, Building2, Users, Package, TrendingUp, Sparkles, Trash2, Edit,
   Target, Lightbulb, AlertTriangle, Briefcase, MapPin, Search, ChevronDown, ChevronUp, Radar,
 } from 'lucide-react';
-import { getSuperpowerContext } from '@/lib/ai';
+import { getSuperpowerContext, parseAIJson } from '@/lib/ai';
 import DiscoveryTab from '@/components/DiscoveryTab';
 
 const INDUSTRIES = ['SaaS', 'FinTech', 'E-commerce', 'Consumer Social', 'HealthTech', 'B2B Infra', 'Marketplaces', 'Deep Tech', 'EdTech', 'Other'];
@@ -171,15 +171,11 @@ Sort by fitTier (tier1 first). Include at least 2 tier1 companies.`;
     if (!result) return;
 
     setRawOutput(result);
-    try {
-      const jsonMatch = result.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed: SuggestedCompany[] = JSON.parse(jsonMatch[0]);
-        setSuggestions(parsed);
-      }
-    } catch {
-      // Show raw if parse fails
+    const parsed = parseAIJson<SuggestedCompany[]>(result);
+    if (parsed && Array.isArray(parsed)) {
+      setSuggestions(parsed);
     }
+    // If parse returns null, rawOutput is already set so the fallback card renders
   };
 
   const addToList = (s: SuggestedCompany) => {
@@ -439,29 +435,33 @@ Provide a structured analysis in exactly this JSON format (no markdown):
     const result = await generate({ prompt });
     if (!result) return;
 
-    try {
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        await update((prev) => ({
-          ...prev,
-          companies: prev.companies.map((c) =>
-            c.id === companyId ? {
-              ...c,
-              realProblem: parsed.realProblem || c.realProblem,
-              superpowerMatch: parsed.superpowerMatch || c.superpowerMatch,
-              powIdea: parsed.powIdea || c.powIdea,
-              jobPostingSignals: [...new Set([...(c.jobPostingSignals || []), ...(parsed.jobPostingSignals || [])])],
-              leadershipSignals: [...new Set([...(c.leadershipSignals || []), ...(parsed.leadershipSignals || [])])],
-              marketSignals: [...new Set([...c.marketSignals, ...(parsed.marketSignals || [])])],
-              redFlags: [...new Set([...(c.redFlags || []), ...(parsed.redFlags || [])])],
-            } : c
-          ),
-        }));
-      }
-    } catch {
-      // silently fail — AI output wasn't JSON
+    const parsed = parseAIJson<{
+      realProblem?: string;
+      superpowerMatch?: string;
+      powIdea?: string;
+      jobPostingSignals?: string[];
+      leadershipSignals?: string[];
+      marketSignals?: string[];
+      redFlags?: string[];
+    }>(result);
+    if (parsed) {
+      await update((prev) => ({
+        ...prev,
+        companies: prev.companies.map((c) =>
+          c.id === companyId ? {
+            ...c,
+            realProblem: parsed.realProblem || c.realProblem,
+            superpowerMatch: parsed.superpowerMatch || c.superpowerMatch,
+            powIdea: parsed.powIdea || c.powIdea,
+            jobPostingSignals: [...new Set([...(c.jobPostingSignals || []), ...(parsed.jobPostingSignals || [])])],
+            leadershipSignals: [...new Set([...(c.leadershipSignals || []), ...(parsed.leadershipSignals || [])])],
+            marketSignals: [...new Set([...c.marketSignals, ...(parsed.marketSignals || [])])],
+            redFlags: [...new Set([...(c.redFlags || []), ...(parsed.redFlags || [])])],
+          } : c
+        ),
+      }));
     }
+    // If parse returns null, silently ignore — AI output wasn't JSON
   };
 
   const researchSignals = async (companyId: string) => {

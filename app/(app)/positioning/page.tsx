@@ -6,7 +6,7 @@ import { useCareerData } from '@/hooks/useCareerData';
 import { useAI } from '@/hooks/useAI';
 import { Win, GRIPNarrative, ElevatorPitch } from '@/lib/types';
 import { WIN_CHECKLISTS, ELEVATOR_PITCH_STRUCTURE } from '@/lib/frameworks';
-import { getSuperpowerContext } from '@/lib/ai';
+import { getSuperpowerContext, parseAIJson } from '@/lib/ai';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Trophy, Grid3X3, Compass, Mic, Sparkles, Trash2 } from 'lucide-react';
+
+// ── Example content for "See an example" disclosures ──
+const WIN_EXAMPLE = {
+  title: 'Eliminated vendor invoice disputes (Cymax)',
+  before: 'Vendor invoice disputes were costing $300K/year and draining ops bandwidth. The legacy bill-checker algorithm used hard-coded rules and kept producing false mismatches.',
+  insight: 'Why are vendors sending invoices at all when we already have complete sales data? The invoice was redundant information we could generate ourselves.',
+  action: 'Analysed dispute patterns, quantified cost, designed an automated invoicing flow with engineers, and built the ROI case for leadership.',
+  after: 'Dispute rate dropped to 0.1%. $300K annual savings. Vendor satisfaction improved. Operations bandwidth freed.',
+  metrics: ['0.1% dispute rate', '$300K annual savings'],
+};
+
+const GRIP_EXAMPLE = {
+  gap: 'Razorpay needs a PM who has solved SMB adoption friction in tier-2 cities — their current merchant onboarding drops 40% before KYC completion.',
+  result: 'At Vendaxo, cut CAC from $4 → $0.76 (81% reduction) by reframing the product for how industrial buyers actually search — information density over clean design.',
+  inputLevers: 'Reframe (60%): Abandoned "clean design" after observing industrial buyers expect dense info above the fold. SEO-led growth (40%): Built proprietary matching and invested in SEO to reduce paid acquisition dependence.',
+  plan: 'I\'d embed with Razorpay\'s merchant onboarding team for two weeks, map every drop-off point with SQL, identify the top 3 friction patterns, then prototype a localised onboarding flow that mirrors how tier-2 merchants already operate (WhatsApp-first, vernacular, low-data). Deliver a business case with projected KYC completion rate improvement before writing a single line of spec.',
+};
 
 export default function PositioningPage() {
   const { data, update, updatePhaseProgress } = useCareerData();
@@ -90,24 +107,32 @@ ${winsText || 'No wins recorded yet.'}
 
 Company problems: ${company?.problems.join(', ') || 'Unknown'}
 
-Format:
-GAP: [What gap exists between current state and ideal]
-RESULT: [What outcome they delivered or can deliver]
-INPUT LEVERS: [2-3 specific levers with 80/20 breakdown - which 20% of effort drove 80% of results]
-PLAN: [Concrete next steps]`,
+Return ONLY valid JSON with no other text:
+{
+  "gap": "The gap between their needs and the candidate's current positioning",
+  "result": "The specific result the candidate delivered that maps to this gap",
+  "inputLevers": "The key levers and their contributions (2-3 specific levers with 80/20 breakdown)",
+  "plan": "How the candidate will close this gap (spend 80% of content here)"
+}`,
     });
 
     if (result) {
-      const gapMatch = result.match(/GAP:\s*([\s\S]*?)(?=RESULT:|$)/i);
-      const resultMatch = result.match(/RESULT:\s*([\s\S]*?)(?=INPUT|$)/i);
-      const planMatch = result.match(/PLAN:\s*([\s\S]*?)$/i);
+      const parsed = parseAIJson<{ gap?: string; result?: string; inputLevers?: string; plan?: string }>(result);
 
-      setGripForm((prev) => ({
-        ...prev,
-        gap: gapMatch?.[1]?.trim() || prev.gap,
-        result: resultMatch?.[1]?.trim() || prev.result,
-        plan: planMatch?.[1]?.trim() || prev.plan,
-      }));
+      if (parsed) {
+        setGripForm((prev) => ({
+          ...prev,
+          gap: parsed.gap || prev.gap,
+          result: parsed.result || prev.result,
+          plan: parsed.plan || prev.plan,
+        }));
+      } else {
+        // Fallback: show raw text if JSON parsing fails
+        setGripForm((prev) => ({
+          ...prev,
+          gap: result || prev.gap,
+        }));
+      }
     }
   };
 
@@ -124,25 +149,31 @@ ${winsText || 'No wins yet.'}
 
 Target: ${company?.name || 'Tech companies in India'}
 
-Generate exactly 3 versions:
-1. STRANGER (10 seconds): One sentence that makes someone want to know more
-2. RECRUITER (30 seconds): Your positioning + 1 proof point + what you're looking for
-3. PEER (2 minutes): Full context with story, metrics, and positioning
-
-Label each section clearly.`,
+Return ONLY valid JSON with no other text:
+{
+  "stranger10s": "10-second stranger pitch - one sentence that makes someone want to know more",
+  "recruiter30s": "30-second recruiter pitch - your positioning + 1 proof point + what you're looking for",
+  "peer2min": "2-minute peer pitch - full context with story, metrics, and positioning"
+}`,
     });
 
     if (result) {
-      const strangerMatch = result.match(/STRANGER[\s\S]*?:\s*([\s\S]*?)(?=RECRUITER|2\.|$)/i);
-      const recruiterMatch = result.match(/RECRUITER[\s\S]*?:\s*([\s\S]*?)(?=PEER|3\.|$)/i);
-      const peerMatch = result.match(/PEER[\s\S]*?:\s*([\s\S]*?)$/i);
+      const parsed = parseAIJson<{ stranger10s?: string; recruiter30s?: string; peer2min?: string }>(result);
 
-      setPitchForm((prev) => ({
-        ...prev,
-        stranger10s: strangerMatch?.[1]?.trim() || prev.stranger10s,
-        recruiter30s: recruiterMatch?.[1]?.trim() || prev.recruiter30s,
-        peer2min: peerMatch?.[1]?.trim() || prev.peer2min,
-      }));
+      if (parsed) {
+        setPitchForm((prev) => ({
+          ...prev,
+          stranger10s: parsed.stranger10s || prev.stranger10s,
+          recruiter30s: parsed.recruiter30s || prev.recruiter30s,
+          peer2min: parsed.peer2min || prev.peer2min,
+        }));
+      } else {
+        // Fallback: show raw text if JSON parsing fails
+        setPitchForm((prev) => ({
+          ...prev,
+          stranger10s: result || prev.stranger10s,
+        }));
+      }
     }
   };
 
@@ -353,6 +384,14 @@ Label each section clearly.`,
             </Button>
           </div>
 
+          <Card className="border-dashed">
+            <CardContent className="py-4">
+              <p className="text-sm">
+                <strong>GRIP = Gap → Result → Input Levers → Plan.</strong> Spend 80% of your narrative on the <strong>Plan</strong> &mdash; that&apos;s where you show you can solve <strong>their</strong> problem, not just talk about your past.
+              </p>
+            </CardContent>
+          </Card>
+
           {data.gripNarratives.map((grip) => {
             const company = data.companies.find((c) => c.id === grip.companyId);
             return (
@@ -389,6 +428,14 @@ Label each section clearly.`,
               <Plus className="h-4 w-4 mr-2" />Add Pitch
             </Button>
           </div>
+
+          <Card className="border-dashed">
+            <CardContent className="py-4">
+              <p className="text-sm">
+                <strong>Three tests:</strong> Stranger (10s) &mdash; can they remember what you do? Recruiter (30s) &mdash; do they want to learn more? Peer (2min) &mdash; do they think &apos;this person gets it&apos;?
+              </p>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardContent className="py-4">
@@ -438,6 +485,16 @@ Label each section clearly.`,
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add a Win</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <details className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground select-none">See an example</summary>
+              <div className="mt-2 space-y-1">
+                <p><strong>Title:</strong> {WIN_EXAMPLE.title}</p>
+                <p><strong>Before:</strong> {WIN_EXAMPLE.before}</p>
+                <p><strong>Insight:</strong> {WIN_EXAMPLE.insight}</p>
+                <p><strong>Action:</strong> {WIN_EXAMPLE.action}</p>
+                <p><strong>After:</strong> {WIN_EXAMPLE.after}</p>
+              </div>
+            </details>
             <div>
               <Label>Title</Label>
               <Input value={winForm.title} onChange={(e) => setWinForm({ ...winForm, title: e.target.value })} placeholder="e.g., Built activation flow that improved D7 retention by 23%" />
@@ -448,19 +505,23 @@ Label each section clearly.`,
             </div>
             <div>
               <Label>Before (situation before your involvement)</Label>
-              <Textarea value={winForm.before} onChange={(e) => setWinForm({ ...winForm, before: e.target.value })} rows={2} />
+              <p className="text-xs text-muted-foreground mb-1">What was the situation before you got involved? Include the metrics.</p>
+              <Textarea value={winForm.before} onChange={(e) => setWinForm({ ...winForm, before: e.target.value })} rows={2} placeholder="e.g. Vendor invoice disputes were costing $300K/year and draining ops bandwidth" />
             </div>
             <div>
               <Label>Insight (what you noticed that others didn&apos;t)</Label>
-              <Textarea value={winForm.insight} onChange={(e) => setWinForm({ ...winForm, insight: e.target.value })} rows={2} />
+              <p className="text-xs text-muted-foreground mb-1">What did you see that others didn&apos;t?</p>
+              <Textarea value={winForm.insight} onChange={(e) => setWinForm({ ...winForm, insight: e.target.value })} rows={2} placeholder="e.g. The invoice itself was redundant — we already had complete sales data" />
             </div>
             <div>
               <Label>Action (what you specifically did)</Label>
-              <Textarea value={winForm.action} onChange={(e) => setWinForm({ ...winForm, action: e.target.value })} rows={2} />
+              <p className="text-xs text-muted-foreground mb-1">What did YOU personally do? Not your team.</p>
+              <Textarea value={winForm.action} onChange={(e) => setWinForm({ ...winForm, action: e.target.value })} rows={2} placeholder="e.g. Analysed dispute patterns, quantified cost, designed automated flow, built ROI case" />
             </div>
             <div>
               <Label>After (measurable outcome)</Label>
-              <Textarea value={winForm.after} onChange={(e) => setWinForm({ ...winForm, after: e.target.value })} rows={2} />
+              <p className="text-xs text-muted-foreground mb-1">The result with metrics.</p>
+              <Textarea value={winForm.after} onChange={(e) => setWinForm({ ...winForm, after: e.target.value })} rows={2} placeholder="e.g. Dispute rate → 0.1%. $300K annual savings." />
             </div>
             <div>
               <Label>Metrics</Label>
@@ -499,6 +560,15 @@ Label each section clearly.`,
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add GRIP Narrative</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            <details className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-medium text-foreground select-none">See an example GRIP story</summary>
+              <div className="mt-2 space-y-1">
+                <p><strong>Gap:</strong> {GRIP_EXAMPLE.gap}</p>
+                <p><strong>Result:</strong> {GRIP_EXAMPLE.result}</p>
+                <p><strong>Input Levers:</strong> {GRIP_EXAMPLE.inputLevers}</p>
+                <p><strong>Plan (80% of story):</strong> {GRIP_EXAMPLE.plan}</p>
+              </div>
+            </details>
             <div>
               <Label>Target Company</Label>
               <Select value={gripForm.companyId} onValueChange={(v) => setGripForm({ ...gripForm, companyId: v })}>

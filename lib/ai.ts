@@ -1,5 +1,39 @@
 import { UserProfile } from './types';
 
+/**
+ * Robustly parse a JSON object OR array out of an AI text response.
+ * Strips markdown code fences, attempts a direct parse, then falls back to
+ * extracting the first {...} or [...] block. Returns null on total failure.
+ *
+ * Single source of truth for AI JSON parsing (M0.1) — pages should import this
+ * instead of redefining a local parseJSON helper.
+ */
+export function parseAIJson<T>(raw: string): T | null {
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const objMatch = cleaned.match(/\{[\s\S]*\}/);
+    const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+    const candidates = [objMatch, arrMatch]
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    for (const m of candidates) {
+      try {
+        return JSON.parse(m[0]) as T;
+      } catch {
+        // try next candidate
+      }
+    }
+    return null;
+  }
+}
+
 export interface AIGenerateRequest {
   prompt: string;
   context?: string;

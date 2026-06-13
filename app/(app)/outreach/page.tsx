@@ -6,7 +6,7 @@ import { useCareerData } from '@/hooks/useCareerData';
 import { useAI } from '@/hooks/useAI';
 import { ColdEmail } from '@/lib/types';
 import { COLD_EMAIL_STRUCTURE } from '@/lib/frameworks';
-import { getSuperpowerContext } from '@/lib/ai';
+import { getSuperpowerContext, parseAIJson } from '@/lib/ai';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Sparkles, Plus, AlertTriangle, Send, CheckCircle, Clock } from 'lucide-react';
+import { Sparkles, Plus, AlertTriangle, Send, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 const RECIPIENT_TYPES = [
   { value: 'hiring-manager', label: 'Hiring Manager' },
@@ -34,10 +34,21 @@ function countIs(text: string): number {
   return (text.match(/\bI\b/g) || []).length;
 }
 
+const JTBD_EMAIL_EXAMPLE = `Subject: Reducing cart drop-off at checkout
+
+Hi Priya,
+
+Noticed your app reviews mention checkout timeouts during high-traffic sales — Flipkart had the same issue in 2022 and lost ~18% GMV in one campaign.
+
+Built a session-recovery flow that cuts drop-off by keeping cart state alive across failures. Tested it on 120 users; 73% completed orders they'd already abandoned.
+
+Worth a 15-min look? Free Thu at 3 pm or Fri at 10 am — whichever works.`;
+
 export default function OutreachPage() {
   const { data, update, updatePhaseProgress } = useCareerData();
   const { generate, loading: aiLoading } = useAI();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
 
   const [form, setForm] = useState({
     companyId: '',
@@ -54,10 +65,12 @@ export default function OutreachPage() {
     const company = data.companies.find((c) => c.id === form.companyId);
     const winsText = data.wins.slice(0, 3).map((w) => `- ${w.title}: ${w.after}`).join('\n');
     const superpowerCtx = getSuperpowerContext(data.profile);
+    const resumeNarrative = data.resumeNarratives.find((r) => r.companyId === form.companyId);
+    const gripNarrative = data.gripNarratives.find((g) => g.companyId === form.companyId);
 
     const result = await generate({
       prompt: `Write a cold ${form.channel === 'email' ? 'email' : 'DM'} using the JTBD (Jobs to Be Done) framework for reaching out to a ${form.recipientType.replace('-', ' ')} at ${company?.name || 'a tech company'}.
-${superpowerCtx ? `\nCandidate superpower (use this as the hook/angle):\n${superpowerCtx}\n` : ''}
+${superpowerCtx ? `\nCandidate superpower (use this as the hook/angle):\n${superpowerCtx}\n` : ''}${gripNarrative ? `\nCandidate's GRIP positioning for this company:\nGap: ${gripNarrative.gap}\nResult: ${gripNarrative.result}\n` : ''}${resumeNarrative ? `\nCandidate's resume narrative for this company:\n${resumeNarrative.narrative}\n` : ''}
 Candidate wins:
 ${winsText || 'Not provided'}
 
@@ -71,17 +84,31 @@ Rules:
 - Keep it under 150 words
 - Be conversational, not formal
 
-Provide SUBJECT line and BODY separately.`,
+Return ONLY valid JSON, no markdown fences:
+{
+  "subject": "Email subject line (under 8 words)",
+  "body": "Full email body"
+}`,
     });
 
     if (result) {
-      const subjectMatch = result.match(/SUBJECT:\s*(.*)/i);
-      const bodyMatch = result.match(/BODY:\s*([\s\S]*)/i);
-      setForm((prev) => ({
-        ...prev,
-        subject: subjectMatch?.[1]?.trim() || prev.subject,
-        body: bodyMatch?.[1]?.trim() || result,
-      }));
+      const parsed = parseAIJson<{ subject: string; body: string }>(result);
+      if (parsed?.subject && parsed?.body) {
+        setForm((prev) => ({
+          ...prev,
+          subject: parsed.subject.trim(),
+          body: parsed.body.trim(),
+        }));
+      } else {
+        // Fallback: try regex parsing for backwards compatibility
+        const subjectMatch = result.match(/SUBJECT:\s*(.*)/i);
+        const bodyMatch = result.match(/BODY:\s*([\s\S]*)/i);
+        setForm((prev) => ({
+          ...prev,
+          subject: subjectMatch?.[1]?.trim() || prev.subject,
+          body: bodyMatch?.[1]?.trim() || result,
+        }));
+      }
     }
   };
 
@@ -144,6 +171,55 @@ Provide SUBJECT line and BODY separately.`,
           <Plus className="h-4 w-4 mr-2" />Compose Email
         </Button>
       </div>
+
+      {/* How Cold Emails Work Guidance */}
+      <Card>
+        <CardHeader className="pb-3">
+          <button
+            onClick={() => setGuidanceOpen(!guidanceOpen)}
+            className="flex items-center justify-between w-full text-left hover:opacity-70 transition-opacity"
+          >
+            <CardTitle className="text-sm">How Cold Emails Work</CardTitle>
+            {guidanceOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        </CardHeader>
+        {guidanceOpen && (
+          <CardContent className="space-y-3 text-sm">
+            <div>
+              <div className="font-medium text-muted-foreground mb-1">JTBD Framework</div>
+              <p className="text-muted-foreground">
+                People don&apos;t buy drills — they buy holes. Companies don&apos;t hire employees — they hire solutions to problems.
+              </p>
+            </div>
+            <div>
+              <div className="font-medium text-muted-foreground mb-1">START</div>
+              <p className="text-muted-foreground">
+                Something specific about THEM (not you). Reference their recent post, product problem, or competitive move.
+              </p>
+            </div>
+            <div>
+              <div className="font-medium text-muted-foreground mb-1">MIDDLE</div>
+              <p className="text-muted-foreground">
+                Show value, don&apos;t pitch. If you have proof-of-work, lead with that.
+              </p>
+            </div>
+            <div>
+              <div className="font-medium text-muted-foreground mb-1">CTA</div>
+              <p className="text-muted-foreground">
+                Make reply dead easy. Offer specific time slots.
+              </p>
+            </div>
+            <div className="pt-2 border-t">
+              <div className="font-medium text-muted-foreground mb-2">Rules</div>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>• Max 150 words</li>
+                <li>• Max 2 uses of &quot;I&quot;</li>
+                <li>• No &quot;I hope this email finds you well&quot;</li>
+              </ul>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Channel Guide */}
       <div className="grid md:grid-cols-3 gap-4">
@@ -264,6 +340,16 @@ Provide SUBJECT line and BODY separately.`,
                   ))}
                 </SelectContent>
               </Select>
+              {form.companyId && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {data.resumeNarratives.find((r) => r.companyId === form.companyId) && (
+                    <Badge variant="secondary" className="text-xs">Resume narrative ✓</Badge>
+                  )}
+                  {data.gripNarratives.find((g) => g.companyId === form.companyId) && (
+                    <Badge variant="secondary" className="text-xs">GRIP story ✓</Badge>
+                  )}
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -312,7 +398,7 @@ Provide SUBJECT line and BODY separately.`,
 
             <div>
               <Label>Subject</Label>
-              <Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Email subject line" />
+              <Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder='e.g. "3 things killing your checkout conversion"' />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -324,12 +410,22 @@ Provide SUBJECT line and BODY separately.`,
                   {iCount > 2 && <AlertTriangle className="h-3 w-3 text-red-500" />}
                 </div>
               </div>
+              <details className="mb-2 rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none font-medium">See an example</summary>
+                <pre className="mt-2 whitespace-pre-wrap leading-relaxed">{JTBD_EMAIL_EXAMPLE}</pre>
+                <p className="mt-1 italic">START: specific problem reference. MIDDLE: show proof, not promise. CTA: binary time slots. &quot;I&quot; count: 0.</p>
+              </details>
               <Textarea
                 value={form.body}
                 onChange={(e) => setForm({ ...form, body: e.target.value })}
                 rows={8}
-                placeholder="Write your cold email..."
+                placeholder="START: Reference their work or problem. MIDDLE: Show value. CTA: Easy next step."
               />
+              {iCount > 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  2 or fewer uses of &quot;I&quot; is the goal. If you&apos;re above that, rewrite to focus on THEM.
+                </p>
+              )}
             </div>
             <Button onClick={saveEmail} className="w-full" disabled={!form.body.trim()}>
               Save Email

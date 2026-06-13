@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useCareerData } from '@/hooks/useCareerData';
 import { UserProfile, SuperpowerStory } from '@/lib/types';
-import { generateAI } from '@/lib/ai';
+import { generateAI, parseAIJson } from '@/lib/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -21,16 +21,12 @@ import {
 
 // ---------- helpers ----------
 
-function parseJSON<T>(raw: string): T | null {
-  try {
-    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
-    return JSON.parse(cleaned);
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) { try { return JSON.parse(match[0]); } catch { return null; } }
-    return null;
-  }
-}
+// ── Example content for "See an example" disclosures ──
+const SUPERPOWER_EXAMPLES = {
+  punchline: 'I step back, find the reframe others miss, and I have the agency to go deep — data, systems, business case — and deliver it myself.',
+  statement30s: 'I tend to question the problem before solving it. I built and sold a B2B marketplace, so I learned to go deep in whatever the situation required — engineering, finance, user behavior. Because I can shift across domains, I often see a different angle that people inside one function miss — and I can execute on it, not just suggest it.',
+  story: 'Vendor invoice disputes were costing $300K/year. The assumed fix was a smarter algorithm. I asked: why are vendors sending invoices at all when we already have complete sales data? I designed an automated invoicing flow with engineers and built the ROI case. Dispute rate dropped to 0.1%.',
+};
 
 const EXTRACTION_PROMPT = `You are analyzing a professional's resume and LinkedIn profile. Return ONLY valid JSON, no markdown fences.
 
@@ -269,7 +265,7 @@ Be specific. Avoid generic phrases like 'results-driven' or 'thinks outside the 
     });
 
     if (result.content) {
-      const parsed = parseJSON<{ reframePattern: string; domainPattern: string; agencyPattern: string }>(result.content);
+      const parsed = parseAIJson<{ reframePattern: string; domainPattern: string; agencyPattern: string }>(result.content);
       if (parsed) {
         setReframePattern(parsed.reframePattern || '');
         setDomainPattern(parsed.domainPattern || '');
@@ -313,7 +309,7 @@ Rules: first person. No buzzwords. Specific over general. Mention actual domains
     });
 
     if (result.content) {
-      const parsed = parseJSON<{ punchline: string; statement30s: string; fullStatement: string }>(result.content);
+      const parsed = parseAIJson<{ punchline: string; statement30s: string; fullStatement: string }>(result.content);
       if (parsed) {
         setPunchline(parsed.punchline || '');
         setStatement30s(parsed.statement30s || '');
@@ -387,6 +383,24 @@ Rules: first person. No buzzwords. Specific over general. Mention actual domains
               </p>
             </CardContent>
           </Card>
+
+          <details className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground select-none">See an example superpower statement</summary>
+            <div className="mt-2 space-y-2">
+              <div>
+                <p className="font-medium text-foreground">Punchline (~15 words):</p>
+                <p className="italic">&ldquo;{SUPERPOWER_EXAMPLES.punchline}&rdquo;</p>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">30-second version:</p>
+                <p>&ldquo;{SUPERPOWER_EXAMPLES.statement30s}&rdquo;</p>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Example story that built it:</p>
+                <p>{SUPERPOWER_EXAMPLES.story}</p>
+              </div>
+            </div>
+          </details>
 
           <div className="space-y-3">
             {stories.map((story, i) => (
@@ -701,7 +715,7 @@ function ProfileDetails({ profile }: { profile: UserProfile }) {
     try {
       const result = await generateAI({ prompt: EXTRACTION_PROMPT, context, maxTokens: 2000 });
       if (result.error || !result.content) throw new Error('Failed');
-      const parsed = parseJSON<Partial<UserProfile>>(result.content);
+      const parsed = parseAIJson<Partial<UserProfile>>(result.content);
       if (!parsed) throw new Error('Parse failed');
       await update((prev) => {
         const base = {

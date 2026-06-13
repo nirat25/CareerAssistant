@@ -13,6 +13,25 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Clock, Play, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 
+// Collapsible guidance: strong vs. vague contrast per question (sourced from curriculum/3-minute_careeraudit.md)
+const AUDIT_GUIDANCE = {
+  capabilityCheck: {
+    vague: '"Got better at stakeholder management" — this is improvement, not a new capability. It doesn\'t transfer to your next role on its own.',
+    strong: '"I can now build a full pricing model from unit economics — sensitivity analysis, margin walk, scenario table — in a Google Sheet from scratch. I couldn\'t have done that 6 months ago, and it\'s already been used to close a Series B partnership."',
+    tip: 'Think: Can you price a product? Build a data pipeline? Run a board meeting? Structure a partnership deal? New capability = something you could not do before, that is specific and transferable.',
+  },
+  marketPosition: {
+    vague: '"Startups need product managers." — this is a category, not a position. Any of 50 other candidates could say the same thing.',
+    strong: '"Series A companies launching in India need someone who has localized B2B products for price-sensitive markets — that is me. Specifically, Razorpay would pick me because I have built payment conversion funnels that lifted success rates by 12%, which is their exact problem right now."',
+    tip: 'Name the company, the role, and the one specific reason they would pick you over 50 similar candidates. If you cannot name a company, you have not done enough market research yet.',
+  },
+  learningEdge: {
+    vague: '"Leadership skills" or "better communication" — these are topics, not learning objectives.',
+    strong: '"How to design compensation structures for remote engineering teams" or "Structuring data teams for AI-first products" — these are objectives you can actually build toward and demonstrate.',
+    tip: 'Not courses you are watching — problems you are actively solving that stretch you. Keep it specific, outcome-driven, and relevant to what the market will pay for next.',
+  },
+} as const;
+
 const QUESTIONS = [
   { key: 'capabilityCheck' as const, label: 'Capability Check', prompt: 'What can I do now that I couldn\'t 6 months ago?' },
   { key: 'marketPosition' as const, label: 'Market Position', prompt: 'Who would hire me tomorrow and why?' },
@@ -151,6 +170,69 @@ Provide a brief diagnostic (3-4 sentences): Are they growing or coasting? Is the
               <div>
                 <CardTitle>Question {currentQuestion + 1}: {q.label}</CardTitle>
                 <CardDescription className="mt-1 text-base">{q.prompt}</CardDescription>
+                {q.key === 'capabilityCheck' && (
+                  <>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Not &quot;got better at stakeholder management&quot; — that&apos;s improvement, not development. Think: Can you price a product from scratch? Build a data pipeline? Structure a partnership deal? Specific. Measurable. Transferable to your next role.
+                    </p>
+                    <details className="mt-2 rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none font-medium">What a clear answer looks like</summary>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <span className="font-semibold text-red-600 dark:text-red-400">Vague: </span>
+                          {AUDIT_GUIDANCE.capabilityCheck.vague}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-green-600 dark:text-green-400">Strong: </span>
+                          {AUDIT_GUIDANCE.capabilityCheck.strong}
+                        </div>
+                        <div className="text-muted-foreground">{AUDIT_GUIDANCE.capabilityCheck.tip}</div>
+                      </div>
+                    </details>
+                  </>
+                )}
+                {q.key === 'marketPosition' && (
+                  <>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Name the company, the role, and WHY they&apos;d pick you over 50 other applicants. If you can&apos;t name a specific company, that&apos;s a signal — you haven&apos;t done enough market research yet.
+                    </p>
+                    <details className="mt-2 rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none font-medium">What a clear answer looks like</summary>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <span className="font-semibold text-red-600 dark:text-red-400">Vague: </span>
+                          {AUDIT_GUIDANCE.marketPosition.vague}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-green-600 dark:text-green-400">Strong: </span>
+                          {AUDIT_GUIDANCE.marketPosition.strong}
+                        </div>
+                        <div className="text-muted-foreground">{AUDIT_GUIDANCE.marketPosition.tip}</div>
+                      </div>
+                    </details>
+                  </>
+                )}
+                {q.key === 'learningEdge' && (
+                  <>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      What&apos;s the hardest skill in your field that you&apos;re actively building? Not courses you&apos;re watching — problems you&apos;re solving that stretch you.
+                    </p>
+                    <details className="mt-2 rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none font-medium">What a clear answer looks like</summary>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <span className="font-semibold text-red-600 dark:text-red-400">Vague: </span>
+                          {AUDIT_GUIDANCE.learningEdge.vague}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-green-600 dark:text-green-400">Strong: </span>
+                          {AUDIT_GUIDANCE.learningEdge.strong}
+                        </div>
+                        <div className="text-muted-foreground">{AUDIT_GUIDANCE.learningEdge.tip}</div>
+                      </div>
+                    </details>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Clock className={`h-4 w-4 ${timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-muted-foreground'}`} />
@@ -163,7 +245,13 @@ Provide a brief diagnostic (3-4 sentences): Are they growing or coasting? Is the
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
-              placeholder="Write your answer here..."
+              placeholder={
+                q.key === 'capabilityCheck'
+                  ? "Example: I can now build a full pricing model from unit economics, including sensitivity analysis — something I couldn't do 6 months ago"
+                  : q.key === 'marketPosition'
+                  ? "Example: Razorpay would hire me as a Growth PM because I've built payment conversion funnels that increased success rates by 12% — their exact problem right now"
+                  : "What's the hardest problem you're solving right now that's stretching your abilities?"
+              }
               value={answers[q.key]}
               onChange={(e) => setAnswers((prev) => ({ ...prev, [q.key]: e.target.value }))}
               rows={6}

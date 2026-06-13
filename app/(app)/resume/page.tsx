@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useCareerData } from '@/hooks/useCareerData';
 import { useAI } from '@/hooks/useAI';
+import { getSuperpowerContext, parseAIJson } from '@/lib/ai';
 import { ResumeNarrative, GapAnalysis } from '@/lib/types';
-import { GAP_TYPES } from '@/lib/frameworks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Sparkles, ShieldCheck, ShieldAlert, ArrowRight } from 'lucide-react';
+
+// ── Example content for "See an example" disclosures ──
+const NARRATIVE_EXAMPLE = `Swiggy is fighting a unit-economics problem in quick-commerce — dark-store costs are rising while order frequency plateaus in tier-2 cities. At Ola, I faced a structurally identical problem: driver cancellations after acceptance were killing per-trip margin. I didn't fix the algorithm — I redesigned the incentive model. Built a dynamic earning-guarantee system (SQL analysis + engineer collaboration + leadership ROI deck) that cut post-acceptance cancellations from 34% to 12%, adding ₹8 per trip to net margin. The core challenge is the same: you can't optimise your way out of a behavioural problem. You have to change the incentive structure itself. I'd bring that same reframe to your dark-store fulfilment cost model.`;
+
+const BRIDGE_EXAMPLE = `Gap: Haven't worked in fintech — no direct payments or KYC experience.
+Bridge: "I haven't built KYC flows, but at Cymax I designed automated reconciliation between 500+ vendor accounts — same trust-at-scale constraint, different regulatory wrapper. I also write my own SQL, so I won't need an analyst to quantify drop-off rates before proposing a solution."`;
 
 export default function ResumePage() {
   const { data, update, updatePhaseProgress } = useCareerData();
@@ -36,10 +42,13 @@ export default function ResumePage() {
       .map((w) => `- ${w.title}: Before: ${w.before} → After: ${w.after}`)
       .join('\n');
 
+    const superpowerCtx = getSuperpowerContext(data.profile);
+    const gripNarrative = data.gripNarratives.find((g) => g.companyId === selectedCompanyId);
+
     const result = await generate({
       prompt: `Generate a tailored resume narrative for a tech professional applying to ${selectedCompany.name} (${selectedCompany.industry}, ${selectedCompany.stage}).
 
-Their problems: ${selectedCompany.problems.join(', ')}
+${superpowerCtx ? `CANDIDATE SUPERPOWER:\n${superpowerCtx}\n` : ''}${gripNarrative ? `EXISTING GRIP POSITIONING:\nGap: ${gripNarrative.gap}\nResult: ${gripNarrative.result}\n` : ''}Their problems: ${selectedCompany.problems.join(', ')}
 Skills they hire: ${selectedCompany.skillsTheyHire.join(', ')}
 
 Candidate wins:
@@ -47,40 +56,38 @@ ${winsText || 'No specific wins recorded.'}
 
 Write using "Before → Insight → Action → After" structure. Make it specific to this company's needs. Use language from the Indian tech ecosystem.
 
-Also provide:
-GAPS: Identify which of these 4 gap types exist: Context Translation, Problem Alignment, Brand Bias, Hiring Manager Mental Math. For each gap found, provide a bridge statement.
-TRUST FACTORS: List 3-4 credibility signals
-RISK FACTORS: List 2-3 concerns a hiring manager might have
-
-Format clearly with section headers.`,
+Return ONLY valid JSON, no markdown fences:
+{
+  "narrative": "The full resume narrative using Before → Insight → Action → After structure, tailored to this company",
+  "gaps": [
+    {
+      "type": "context-translation|problem-alignment|brand-bias|hiring-manager-math",
+      "description": "Description of the gap",
+      "bridgeStatement": "How to bridge this gap"
+    }
+  ],
+  "trustFactors": ["credibility signal 1", "credibility signal 2", "credibility signal 3"],
+  "riskFactors": ["concern 1", "concern 2"]
+}`,
       maxTokens: 2048,
     });
 
     if (result) {
-      setNarrative(result);
+      const parsed = parseAIJson<{
+        narrative: string;
+        gaps: GapAnalysis[];
+        trustFactors: string[];
+        riskFactors: string[];
+      }>(result);
 
-      const detectedGaps: GapAnalysis[] = [];
-      for (const gapType of GAP_TYPES) {
-        const regex = new RegExp(`${gapType.label}[:\\s]+(.*?)(?=(?:Context|Problem|Brand|Hiring|TRUST|RISK|$))`, 'si');
-        const match = result.match(regex);
-        if (match) {
-          detectedGaps.push({
-            type: gapType.id as GapAnalysis['type'],
-            description: gapType.description,
-            bridgeStatement: match[1]?.trim() || '',
-          });
-        }
-      }
-      setGaps(detectedGaps);
-
-      const trustMatch = result.match(/TRUST[\s\S]*?:([\s\S]*?)(?=RISK|$)/i);
-      if (trustMatch) {
-        setTrustFactors(trustMatch[1].split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean));
-      }
-
-      const riskMatch = result.match(/RISK[\s\S]*?:([\s\S]*?)$/i);
-      if (riskMatch) {
-        setRiskFactors(riskMatch[1].split('\n').map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim()).filter(Boolean));
+      if (parsed) {
+        setNarrative(parsed.narrative || '');
+        setGaps(parsed.gaps || []);
+        setTrustFactors(parsed.trustFactors || []);
+        setRiskFactors(parsed.riskFactors || []);
+      } else {
+        // Fallback: show raw text as narrative if JSON parsing fails
+        setNarrative(result);
       }
     }
   };
@@ -192,6 +199,19 @@ Format clearly with section headers.`,
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <details className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                <summary className="cursor-pointer font-medium text-foreground select-none">See an example narrative + bridge statement</summary>
+                <div className="mt-2 space-y-2">
+                  <div>
+                    <p className="font-medium text-foreground mb-1">Company-specific narrative (Before → Insight → Action → After):</p>
+                    <p className="whitespace-pre-wrap">{NARRATIVE_EXAMPLE}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground mb-1">Gap bridge statement:</p>
+                    <p className="whitespace-pre-wrap">{BRIDGE_EXAMPLE}</p>
+                  </div>
+                </div>
+              </details>
               <Textarea
                 value={narrative}
                 onChange={(e) => setNarrative(e.target.value)}

@@ -103,6 +103,100 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {(() => {
+        // Suggested Next Action logic
+        if (data.companies.length === 0) {
+          return (
+            <Link href="/market">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Add your first target company in Market Research</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        if (data.wins.length === 0) {
+          return (
+            <Link href="/positioning">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Add your first win in Positioning</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        if (data.gripNarratives.length === 0) {
+          const topCompany = data.companies[0];
+          return (
+            <Link href="/positioning">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Generate a GRIP story for {topCompany.name}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        if (data.resumeNarratives.length === 0) {
+          const topCompany = data.companies[0];
+          return (
+            <Link href="/resume">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Build a resume narrative for {topCompany.name}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        if (data.coldEmails.length === 0) {
+          const topCompany = data.companies[0];
+          return (
+            <Link href="/outreach">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Draft a cold email to {topCompany.name}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        const sentEmails = data.coldEmails.filter((e) => e.sent);
+        if (sentEmails.length === 0) {
+          return (
+            <Link href="/outreach">
+              <Card className="border-primary/20 bg-primary/5 hover:border-primary/50 transition-colors cursor-pointer">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-2">
+                    <ArrowRight className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Send your first cold email</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        }
+        // All foundational steps done
+        return null;
+      })()}
+
       <div className="grid gap-4">
         {PHASES.map((phase, index) => {
           const Icon = ICON_MAP[phase.icon] || Target;

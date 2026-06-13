@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { useCareerData } from '@/hooks/useCareerData';
 import { useAI } from '@/hooks/useAI';
+import { getSuperpowerContext, parseAIJson } from '@/lib/ai';
 import { ProofOfWork, SprintDay, UserTestEntry } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,25 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sparkles, CheckCircle, Circle, Plus } from 'lucide-react';
+
+interface GrowthEquationJSON {
+  topMetric: string;
+  levels?: Array<{ metric: string; subMetrics?: string[] }>;
+  suggestedLever: string;
+  sprintPlan?: string[];
+}
+
+const GROWTH_EQUATION_EXAMPLE = `Top metric: Revenue
+  = Orders × AOV × Take Rate
+
+  Orders = (New Users × Activation Rate) + (Existing Users × Order Frequency)
+
+  Order Frequency = App Opens × Browse-to-Order Conversion (12% vs 15% industry avg)
+
+Target lever: Browse-to-Order Conversion  ← gap vs industry = your 10-day sprint
+
+Proof-of-work idea: Build a session-recovery flow that keeps cart state alive
+across payment failures. Measure: conversion lift on 50 test sessions.`;
 
 export default function ProofPage() {
   const { data, update, updatePhaseProgress } = useCareerData();
@@ -53,24 +73,40 @@ export default function ProofPage() {
     const company = data.companies.find((c) => c.id === companyId);
     if (!company) return;
 
+    const superpowerCtx = getSuperpowerContext(data.profile);
+
     const result = await generate({
       prompt: `Decode the growth equation for ${company.name} (${company.industry}, ${company.type} company).
+Company's problems: ${company.problems.join(', ')}${company.realProblem ? `\nCore business challenge: ${company.realProblem}` : ''}
+${superpowerCtx ? `\nCandidate context:\n${superpowerCtx}\n` : ''}
+Return ONLY valid JSON, no markdown fences:
+{
+  "topMetric": "The top-level business metric (e.g., Revenue)",
+  "levels": [
+    { "metric": "Level 1 breakdown (e.g., Orders × AOV)", "subMetrics": ["sub-metric 1", "sub-metric 2"] },
+    { "metric": "Level 2 breakdown (e.g., New Users × Activation Rate × Purchase Rate)", "subMetrics": ["sub-metric 1", "sub-metric 2"] }
+  ],
+  "suggestedLever": "The ONE lever to target for proof-of-work in 10 days, aligned with their superpower",
+  "sprintPlan": ["Day 1-2: Planning and setup", "Day 3-4: MVP development", "Day 5: MVP ready", "Day 6-7: User testing and feedback", "Day 8-9: Refinement", "Day 10: Polish and send"]
+}
 
-Break down their top-level metric into sub-levers. Format:
-TOP METRIC: [e.g., Revenue]
-LEVEL 1: [e.g., Orders × AOV]
-LEVEL 2: [e.g., New Users × Activation Rate × Purchase Rate]
-SUGGESTED LEVER: [Pick ONE lever that a job seeker could build proof-of-work around in 10 days]
-10-DAY SPRINT: [Brief day-by-day plan]
-
-Be specific to their business model.`,
+Be specific to their business model and make the suggested lever achievable in 10 days.`,
     });
 
     if (result) {
-      const topMatch = result.match(/TOP METRIC:\s*(.*)/i);
-      const leverMatch = result.match(/SUGGESTED LEVER:\s*(.*)/i);
-      if (topMatch) setTopMetric(topMatch[1].trim());
-      if (leverMatch) setTargetLever(leverMatch[1].trim());
+      // Try JSON parsing first
+      const parsed = parseAIJson<GrowthEquationJSON>(result);
+
+      if (parsed && parsed.topMetric && parsed.suggestedLever) {
+        setTopMetric(parsed.topMetric);
+        setTargetLever(parsed.suggestedLever);
+      } else {
+        // Fallback to regex parsing for backwards compatibility
+        const topMatch = result.match(/TOP METRIC:\s*(.*)/i);
+        const leverMatch = result.match(/SUGGESTED LEVER:\s*(.*)/i);
+        if (topMatch) setTopMetric(topMatch[1].trim());
+        if (leverMatch) setTargetLever(leverMatch[1].trim());
+      }
     }
   };
 
@@ -130,9 +166,11 @@ Be specific to their business model.`,
 
     const completedDays = proof.sprintPlan.filter((d) => d.completed).length;
 
+    const superpowerCtx = getSuperpowerContext(data.profile);
+
     const result = await generate({
       prompt: `Generate a proof-of-work pitch email for sending to ${company.name}.
-
+${superpowerCtx ? `\nSender's positioning:\n${superpowerCtx}\n` : ''}
 Format: Problem → Solution → Feedback → Impact
 Target lever: ${proof.targetLever}
 Sprint progress: ${completedDays}/10 days completed
@@ -181,9 +219,33 @@ Make it concise, specific, and actionable. Include a clear CTA.`,
 
           {companyId && (
             <>
+              {(() => {
+                const company = data.companies.find((c) => c.id === companyId);
+                return company ? (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <div className="text-sm font-medium mb-2">Their Top Problems</div>
+                    <div className="flex flex-wrap gap-2">
+                      {company.problems.length > 0 ? (
+                        company.problems.map((p, i) => <Badge key={i} variant="outline">{p}</Badge>)
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No problems recorded</span>
+                      )}
+                    </div>
+                    {company.realProblem && (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        <strong>Real problem:</strong> {company.realProblem}
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+              })()}
               <Button variant="outline" onClick={generateGrowthEquation} disabled={aiLoading}>
                 <Sparkles className="h-4 w-4 mr-2" />{aiLoading ? 'Analyzing...' : 'Decode Growth Equation with AI'}
               </Button>
+              <details className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none font-medium">See an example</summary>
+                <pre className="mt-2 whitespace-pre-wrap leading-relaxed">{GROWTH_EQUATION_EXAMPLE}</pre>
+              </details>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <Label>Top Metric</Label>
